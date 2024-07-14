@@ -1,5 +1,5 @@
 ;=========================================================================
-; flash the LEDs connected toport 4 pins once each secod
+; flash the LEDs connected to port 4 pins once each second
 ;=========================================================================
             PAGE 0               ;  suppress page headings in ASW listing file
 
