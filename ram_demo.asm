@@ -2,8 +2,8 @@
 ; demonstration of accessing different types of RAM on the MK38P73
 ;=========================================================================
             PAGE 0               ;  suppress page headings in ASW listing file
-            
-            cpu MK3873            
+
+            cpu MK3873
 
 ; 64 bytes of 'executable' RAM accessed indirectly through DC (Data Counter):
 ;   0FC0=0FFFH
@@ -33,8 +33,8 @@ loopcnt     equ 38H              ; scratchpad RAM accessed indirectly through IS
             lr Q,DC              ; save DC in linkage register Q
             li 0FFH
             st                   ; store A at [DC] (DC is incremented)
-            
-            li loopcnt     
+
+            li loopcnt
             lr IS,A              ; load IS with address of 'loopcnt'
 
 loop:       lr DC,Q              ; restore DC from Q
@@ -48,18 +48,18 @@ loop:       lr DC,Q              ; restore DC from Q
             pi delay             ; delay 1 Sec
             br loop
 
-;------------------------------------------------------------------------            
+;------------------------------------------------------------------------
 ; delay = 10,014 µS times number in 'delaycnt'
 ;------------------------------------------------------------------------
 delay:      clr
-            lr	S,A               ; store A in scratchpad RAM addressed by [IS]. 'S' means do not increment or decrement IS
+            lr S,A               ; store A in scratchpad RAM addressed by [IS]. 'S' means do not increment or decrement IS
 delay1:     in 0FFH
             in 0FFH
             in 0FFH
             nop
             ds S                 ; decrement scratchpad RAM addressed by [IS]. 'S' means do not increment or decrement IS
             bnz delay1
-            ds	delaycnt
+            ds delaycnt
             bnz delay
             pop
 

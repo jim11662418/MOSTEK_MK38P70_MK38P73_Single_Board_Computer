@@ -1,6 +1,6 @@
 ;=========================================================================
 ; prints the contents of linkage register QL as a 2 digit hex number
-;=========================================================================            
+;=========================================================================
             page 0              ;  suppress page headings in asw listing file
 
             cpu MK3873
@@ -23,7 +23,7 @@ txdata      equ 0AH        ; transmit buffer in scratchpad RAM
 rxdata      equ 0BH        ; receive buffer in scratchpad RAM
 
             org 0000H
-            
+
 init:       li bdrate      ; baud rate value for 9600 bps
             outs brport    ; output to baud rate port
             li rxcmd       ; start in receiver mode
@@ -33,32 +33,32 @@ init:       li bdrate      ; baud rate value for 9600 bps
             outs dlport    ; clear lower half of data port
             ins cnport     ; clear error status
             ins duport     ; clear ready status
-            
+
             clr
             lr count,A
-            
+
 tstloop:    lr A,count
             inc
             lr count,A
-            
+
             lr QL,A
             pi hexbyte
-            
+
             li 0DH
             lr txdata,A
             pi putchar
-            
+
             li 50
             lr delaycnt,A
             pi delay
             br tstloop
-            
+
 ;------------------------------------------------------------------------
 ; prints (to the serial port) the contents of linkage register QL as a 2 digit hex number
-;------------------------------------------------------------------------  
+;------------------------------------------------------------------------
 hexbyte:    lr K,P         ; save the caller's return address (stack register P) in linkage register K
             lr A,QL        ; retrieve the byte from QL
-            sr 4           ; shift the 4 most significant bits to the 4 least significant position 
+            sr 4           ; shift the 4 most significant bits to the 4 least significant position
             ai 30H         ; add 30H to convert from binary to ASCII
             ci '9'         ; compare to ASCII '9'
             bp hexbyte1    ; branch if '0'-'9'
@@ -75,24 +75,24 @@ hexbyte1:   lr txdata,A    ; put it into the transmit buffer
 hexbyte2:   lr txdata,A    ; put it into the transmit buffer
             pi putchar     ; print the least significant hex digit
             pk             ; Program Counter (P0) is loaded with the contents of linkage register K.
-          
-;------------------------------------------------------------------------            
+
+;------------------------------------------------------------------------
 ; delay = 10,014 µS times number in 'delaycnt'
 ;------------------------------------------------------------------------
 delay:      clr                  ;   1 cycle
-            lr	loopcnt,A         ;   2 cycle
+            lr loopcnt,A         ;   2 cycle
 delay1:     in 0FFH              ;     4 cycles
             in 0FFH              ;     4 cycles
             in 0FFH              ;     4 cycles
-            nop                  ;     1 cycles           
-            ds loopcnt           ;     1.5 cycles  
-            bnz delay1           ;     3.5 cycles 
-            ds	delaycnt          ;   1.5 cycles
-            bnz delay            ;   3.5 cycles          
+            nop                  ;     1 cycles
+            ds loopcnt           ;     1.5 cycles
+            bnz delay1           ;     3.5 cycles
+            ds delaycnt          ;   1.5 cycles
+            bnz delay            ;   3.5 cycles
             pop                  ; 2 cycles
-            
+
 ;-----------------------------------------------------------------------------------
-; transmit the character in the tx buffer 'txdata' through the serial port     
+; transmit the character in the tx buffer 'txdata' through the serial port
 ;-----------------------------------------------------------------------------------
 putchar:    lr A,txdata    ; load the character to be tranmitted from the transmit buffer
             sl 1           ; shift left to make room for the start bit
@@ -107,9 +107,9 @@ putchar:    lr A,txdata    ; load the character to be tranmitted from the transm
             outs cnport    ; shift it out
 putchar1:   ins cnport     ; read the control port to check for completion of transmission
             sl 1           ; shift the underrun error bit into into the sign bit position
-            bp putchar1    ; loop until no underrun error (all 10 bits have been shifted out)            
+            bp putchar1    ; loop until no underrun error (all 10 bits have been shifted out)
             li rxcmd
             outs cnport    ; return to receiver mode
-            ins duport     ; clear ready status            
+            ins duport     ; clear ready status
             pop
 

@@ -32,19 +32,19 @@ loop:       lr A,count
             pi delay             ; delay 1 Sec
             br loop
 
-;------------------------------------------------------------------------            
+;------------------------------------------------------------------------
 ; delay = 10,014 µS times number in 'delaycnt'
 ;------------------------------------------------------------------------
 delay:      clr                  ;   1 cycle
-            lr	loopcnt,A         ;   2 cycle
+            lr loopcnt,A         ;   2 cycle
 delay1:     in 0FFH              ;     4 cycles
             in 0FFH              ;     4 cycles
             in 0FFH              ;     4 cycles
-            nop                  ;     1 cycles           
-            ds loopcnt           ;     1.5 cycles  
-            bnz delay1           ;     3.5 cycles 
-            ds	delaycnt          ;   1.5 cycles
-            bnz delay            ;   3.5 cycles          
+            nop                  ;     1 cycles
+            ds loopcnt           ;     1.5 cycles
+            bnz delay1           ;     3.5 cycles
+            ds delaycnt          ;   1.5 cycles
+            bnz delay            ;   3.5 cycles
             pop                  ; 2 cycles
 
             end
