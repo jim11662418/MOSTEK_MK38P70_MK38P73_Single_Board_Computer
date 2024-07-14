@@ -5,13 +5,13 @@
             
             cpu MK3873            
 
-; 64 bytes of 'executable' RAM accessed indirectly through DC:
+; 64 bytes of 'executable' RAM accessed indirectly through DC (Data Counter):
 ;   0FC0=0FFFH
 
 ; 12 bytes of 'scratchpad' RAM accessed directly:
 ;   00-0BH
 
-; 48 bytes of 'scratchpad' RAM accessed indirectly through ISAR:
+; 48 bytes of 'scratchpad' RAM accessed indirectly through IS (Indirect Scratchpad Address Register):
 ;   10-17H
 ;   18-1FH
 ;   20-27H
@@ -25,7 +25,7 @@ LEDport     equ 04H              ; parallel I/O port 4
 ; scratchpad RAM
 count       equ 0FC0H            ; executable RAM accessed indirectly through DC
 delaycnt    equ 01H              ; scratchpad RAM accessed directly
-loopcnt     equ 38H              ; scratchpad RAM accessed indirectly through LSIR
+loopcnt     equ 38H              ; scratchpad RAM accessed indirectly through IS
 
             org 0000H
 
@@ -35,7 +35,7 @@ loopcnt     equ 38H              ; scratchpad RAM accessed indirectly through LS
             st                   ; store A at [DC] (DC is incremented)
             
             li loopcnt     
-            lr IS,A              ; load LSIR with address of 'loopcnt'
+            lr IS,A              ; load IS with address of 'loopcnt'
 
 loop:       lr DC,Q              ; restore DC from Q
             lm                   ; load A from RAM addressed by [DC] (DC is incremented)
@@ -52,12 +52,12 @@ loop:       lr DC,Q              ; restore DC from Q
 ; delay = 10,014 µS times number in 'delaycnt'
 ;------------------------------------------------------------------------
 delay:      clr
-            lr	S,A               ; store A in scratchpad RAM addressed by [LISR]. 'S' means do not increment or decrement ISIR
+            lr	S,A               ; store A in scratchpad RAM addressed by [IS]. 'S' means do not increment or decrement IS
 delay1:     in 0FFH
             in 0FFH
             in 0FFH
             nop
-            ds S                 ; decrement scratchpad RAM addressed by [LISR]. 'S' means do not increment or decrement ISIR
+            ds S                 ; decrement scratchpad RAM addressed by [IS]. 'S' means do not increment or decrement IS
             bnz delay1
             ds	delaycnt
             bnz delay
