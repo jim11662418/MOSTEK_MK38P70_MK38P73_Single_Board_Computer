@@ -33,7 +33,7 @@ loop:       lr A,count
             br loop
 
 ;------------------------------------------------------------------------
-; delay = 10,014 µS times number in 'delaycnt'
+; delay = 10,014 ÂµS times number in 'delaycnt'
 ;------------------------------------------------------------------------
 delay:      clr                  ;   1 cycle
             lr loopcnt,A         ;   2 cycle
