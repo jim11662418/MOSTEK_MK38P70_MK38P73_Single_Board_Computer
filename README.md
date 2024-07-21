@@ -5,4 +5,4 @@ Assemble the source with the [Macro Assembler AS](http://john.ccac.rwth-aachen.d
 <p align="center"><img src="/images/MK38P73 SBC Photo.JPG"/>
 <p align="center">MK38P73 SBC</p><br>
 <p align="center"><img src="/images/MK38P73 SBC.jpg"/>
-<p align="center">MK38P73 Schematic</p><br>
+<p align="center">MK38P73 SBC Schematic</p><br>
