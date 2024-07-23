@@ -13,12 +13,13 @@
 ;  - jump to main memory address
 ;  - output to an I/O port
 ;  - display scratchpad memory
+;  - display uptime
 ;  - examine/modify scratchpad memory
 ;
 ; assemble with Macro Assembler AS V1.42 http://john.ccac.rwth-aachen.de:8000/as/
 ;=========================================================================
 
-            cpu MK3873     ; tell the Macro Assembler AS that this source is for the Mostek MCU
+            cpu MK3873
 
 ; constants
 bdrate      equ 0BH        ; command send to brport to set baud rate to 9600
@@ -27,32 +28,47 @@ rxcmd       equ 90H        ; command send to cnport to configure shift register 
 ESCAPE      equ 1BH
 ENTER       equ 0DH
 
-; RAM addresses
-patch       equ 0FF8H      ; address in Executable RAM for 'input' and 'output' routines
-saveA       equ 0FF0H      ; address in executable RAM where Accumulator is saved
+patch       equ 0FF8H
 
 ; port addresses
-LEDport     equ 04H        ; parallel I/O port 4
-icp         equ 06H        ; interrupt control port
-timerport   equ 07H        ; timer port
-brport      equ 0CH        ; address of baud rate port
-cnport      equ 0DH        ; address of control port
-duport      equ 0EH        ; address of upper data port
-dlport      equ 0FH        ; address of lower data port
+LEDport     equ 04H
+icp         equ 06H
+timerport   equ 07H
+brport      equ 0CH
+cnport      equ 0DH
+duport      equ 0EH
+dlport      equ 0FH
 
 ; scratchpad RAM registers
-portaddr    equ 05H        ; used by 'input' and 'output' functions
-bytecnt     equ 05H        ; used by the 'display' function
-checksum    equ 05H        ; used by the 'dnload' function
-portval     equ 06H        ; used by 'input' and 'output' functions
-linecnt     equ 06H        ; used by the 'display' function
-recordlen   equ 06H        ; used by the 'dnload' function
-original    equ 06H        ; used by the 'examine' and 'xamine' function
-hexbyte     equ 07H        ; used by the 'printhex' function
-rxdata      equ 07H        ; receive buffer used by the 'getchar' function
-txdata      equ 08H        ; transmit buffer used by the 'putchar' function
+saveA       equ 02H
+saveIS      equ 03H
+number      equ 04H
+errors      equ 04H
+portaddr    equ 05H
+bytecnt     equ 05H
+checksum    equ 05H
+digit       equ 05H
+zeroflag    equ 06H
+portval     equ 06H
+linecnt     equ 06H
+recordlen   equ 06H
+hexbyte     equ 07H
+rxdata      equ 07H
+txdata      equ 08H
+
+intcounter  equ 38H
+seconds     equ 39H
+minutes     equ 3AH
+hours       equ 3BH
 
             org 0000H
+
+            li seconds
+            lr IS,A
+            clr
+            lr I,A         ; reset seconds
+            lr I,A         ; reset minutes
+            lr I,A         ; reset hours
 
 ; initialize serial port for 9600 bps, N-8-1
 init:       li bdrate      ; baud rate value for 9600 bps
@@ -76,42 +92,59 @@ init:       li bdrate      ; baud rate value for 9600 bps
             org 0020H      ; timer interrupt vector
 ;--------------------------------------------------------------------------
 ; timer interrupt service routine:
-; 1. save DC, Accumulator and Status Register
+; 1. save Accumulator, ISAR and Status Register
 ; 2. increment interrupt counter
-; 3. when interrupt counter reaches 50 (after 1 second has elapsed), flash the LEDs
-; 4. restore DC, Accumulator and Status Register
+; 3. when interrupt counter reaches 50, update seconds, minutes, hours and flash the LEDs
+; 4. restore Accumulator, ISAR and Status Register
 ; 5. return from interrupt
 ;--------------------------------------------------------------------------
-timerisr:   xdc            ; save DC in DC1
-            dci saveA      ; address in executable RAM where Accumulator is saved
-            st             ; save A in executable RAM, increment DC
-            lr J,W
-            lr A,J
-            st             ; save status register in executable RAM, increment DC
-
-            lm             ; load the interrupt counter from executable RAM
+timerisr:   lr J,W         ; save status
+            lr saveA,A     ; save accumulator
+            lr A,IS
+            lr saveIS,A    ; save ISAR
+            
+            lr A,S         ; load interrupt counter
             inc            ; increment the interrupt counter
-            dci saveA+2    ; address in executable RAM where interrupt counter is saved
-            st             ; save the interrupt counter, increment DC
-            ci 50          ; have 50 interrupts (or one second) been counted?
-            bnz timerisr1  ; exit if not
-            dci saveA+2
+            lr S,A
+            
+            ci 50          ; have 50 interrupts been counted?
+            bnz timerisr2  ; if not, go restore registers and exit isr
             clr
-            st             ; reset the interrupt counter
+            lr S,A         ; reset the interrupt counter
 
-; at present, the only thing that the timer ISR does is flash the LEDs connected to
-; port 4 to visually show that it's working.
-            ins LEDport
+; 50 interrupts (50 * 20 mSec or one second) have been counted...
+            li seconds
+            lr IS,A        
+            lr A,S         ; load seconds
+            inc            ; increment seconds
+            lr S,A
+            ci 60          ; 60 seconds?
+            bnz timerisr1  ; branch if not yet 60 seconds
+            clr
+            lr I,A         ; reset seconds
+            
+            lr A,S         ; load minutes
+            inc            ; increment minutes
+            lr S,A
+            ci 60          ; 60 seconds?
+            bnz timerisr1  ; branch if not yet 60 minutes
+            clr
+            lr I,A         ; reset minutes
+            
+            lr A,S         ; load hours
+            inc            ; increment hours
+            lr S,A
+            
+; flash the LEDs connected to port 4 each second to show visually that it's working
+timerisr1:  ins LEDport
             inc
             outs LEDport   ; flash the LEDs every second
 
-timerisr1:  dci saveA+1    ; executable RAM address where status register is saved
-            lm
-            lr J,A
-            lr W,J         ; restore original status register
-            dci saveA      ; executable RAM address where A is saved
-            lm             ; restore original Accumulator
-            xdc            ; restore original DC
+; restore registers and exit isr
+timerisr2:  lr A,saveIS
+            lr IS,A        ; restore original ISAR
+            lr A,saveA     ; restore original Accumulator
+            lr W,J         ; restore original Status Register
             ei             ; re-enable interrupts
             pop            ; return from interrupt
 
@@ -161,14 +194,49 @@ monitor9:   ci 'O'
 monitor10:  ci 'S'
             bnz monitor11
             jmp scratch
-
-monitor11:  ci 'X'
+            
+monitor11:  ci 'U'
             bnz monitor12
+            jmp uptime
+
+monitor12:  ci 'X'
+            bnz monitor13
             jmp xamine
 
-monitor12:  ci ':'         ; 'start of record' character for hex download received
+monitor13:  ci ':'         ; 'start of record' character for hex download received
             bnz monitor1
+            clr
+            lr errors,A    ; clear the checksum error count
             jmp dnload3    ; jump to hex download
+            
+;=======================================================================
+; print the uptime as HH:MM:SS
+;=======================================================================            
+uptime:     pi newline
+            pi newline
+            
+            li hours
+            lr IS,A
+            lr A,D
+            lr number,A
+            pi printdecZ   ; print the hours
+            li ':'
+            lr txdata,A
+            pi putchar     ; print ':'
+            
+            lr A,D
+            lr number,A
+            pi printdecZ   ; print the minutes
+            li ':'
+            lr txdata,A            
+            pi putchar     ; print ':'
+            
+            lr A,S
+            lr number,A
+            pi printdecZ   ; print the seconds
+            
+            pi newline
+            jmp monitor2
 
 ;=======================================================================
 ; examine/modify Scratchpad RAM contents
@@ -199,7 +267,6 @@ xamine1:    lr A,IS        ; load HU into A
 ; get the byte from scratchpad RAM
             lr A,S         ; load the byte from scratchpad RAM into A, do not increment or decrement IS
             lr hexbyte,A   ; save it in 'hexbyte' for the 'printhex' function
-            lr original,A  ; save it in 'original' in case it's needed later
             pi printhex    ; print the data byte at that address
             pi space       ; print a space
 
@@ -208,7 +275,7 @@ xamine1:    lr A,IS        ; load HU into A
             lr A,rxdata    ; load the byte from the 'get2hex' function into A
             bnc xamine2    ; branch if the byte from 'het2hex' is not a control character
             ci ENTER       ; was the input ENTER?
-            lr A,original  ; recall the original value stored at this memory address
+            lr A,S         ; recall the original value stored at this memory address
             bz xamine2
             jmp monitor2   ; if not ENTER, the input must have been ESCAPE
 
@@ -304,6 +371,9 @@ display6:   lr txdata,A    ; store the character in 'txdata' for the 'putchar' f
 ;=======================================================================
 dnload:     dci waitingtxt
             pi putstr         ; prompt for the HEX download
+            clr
+            lr errors,A       ; clear the checksum error count
+            
 dnload1:    ins cnport        ; wait here until READY bit goes high to indicate a character is available at the serial port
             bp dnload1
             pi getchar        ; get the character waiting at the serial port
@@ -315,25 +385,34 @@ dnload1:    ins cnport        ; wait here until READY bit goes high to indicate 
 dnload2:    ci ':'            ; is the character the start of record character ':'?
             bnz dnload1       ; if not, go back for another character
 
-; start of record character ':' received...
+; start of record character ':' has been received, get the record length
 dnload3:    pi getbyte        ; get the record length
             lr A,rxdata
-            ci 0              ; is the recoed length zero?
-            bz dnload6        ; zero record length means this is the last record
-            lr recordlen,A
-            lr checksum,A
-            pi getbyte        ; get the address hi byte
+            ci 0              ; is the record length zero?
+            bz dnload6        ; branch if the record length is zero
+            lr recordlen,A    ; else, save the record length
+            lr checksum,A     ; add it to the checksum
+            
+; get the address hi byte            
+            pi getbyte
             lr A,rxdata
             lr HU,A
             as checksum
             lr checksum,A
-            pi getbyte        ; get the address lo byte
+
+; get the address lo byte            
+            pi getbyte
             lr A,rxdata
             lr HL,A
             as checksum
             lr checksum,A
-            lr DC,H
+            lr DC,H           ; load the record address into DC
+
+; get the record type            
             pi getbyte        ; get the record type
+            lr A,rxdata
+            as checksum
+            lr checksum,A
 
 ; download and store data bytes...
 dnload4:    pi getbyte        ; get a data byte
@@ -342,7 +421,7 @@ dnload4:    pi getbyte        ; get a data byte
             as checksum
             lr checksum,A
             ds recordlen
-            bnz dnload4
+            bnz dnload4       ; loop back until all data bytes for this record have been received
 
 ; since the record's checksum byte is the two's complement and therefore the additive inverse
 ; of the data checksum, the verification process can be reduced to summing all decoded byte
@@ -351,20 +430,23 @@ dnload4:    pi getbyte        ; get a data byte
             lr A,rxdata
             as checksum
             li '.'
-            bz dnload5
+            bz dnload5        ; zero means checksum OK
+            lr A,errors
+            inc
+            lr errors,A       ; else, increment checksum error count
             li 'E'
 dnload5:    lr txdata,A
             pi putchar        ; echo the carriage return
-            br dnload1
+            br dnload1        ; go back for the next record
 
 ; last record
 dnload6:    pi getbyte        ; get the last record address hi byte
             lr A,rxdata
-            lr HU,A
+            lr HU,A           ; save the hi byte of the last record's address in HU
             pi getbyte        ; get the last record address lo byte
             lr A,rxdata
-            lr HL,A
-            pi getbyte        ; get the last record record type
+            lr HL,A           ; save the lo byte of the last record's address in HL
+            pi getbyte        ; get the last record type
             pi getbyte        ; get the last record checksum
 dnload7:    ins cnport        ; wait here until READY bit goes high to indicate a character is available at the serial port
             bp dnload7
@@ -373,8 +455,17 @@ dnload7:    ins cnport        ; wait here until READY bit goes high to indicate 
             lr txdata,A
             pi putchar        ; echo the carriage return
             pi newline
+            
+            pi printdecS      ; print the number of checksum errors
+            dci cksumerrtxt
+            pi putstr         ; print "Checksum errors"
+            
+            lr A,number       ; recall the checksum error count      
+            ci 0
+            bz dnload8        ; if there were no checksum errors, jump to the address in the last record
+            jmp monitor2      ; else, return to monitor
 
-            lr DC,H           ; move the address from the last record now in H to DC
+dnload8:    lr DC,H           ; move the address from the last record now in H to DC
             lr Q,DC           ; move the address in DC to Q
             lr P0,Q           ; move the address in Q to the program counter (jump to the address in Q)
 
@@ -408,7 +499,6 @@ examine1:   lr H,DC        ; save DC in H
             lr H,DC        ; save DC in H
             lm             ; load the byte from memory into A, increment DC
             lr hexbyte,A   ; save it in 'hexbyte' for the 'printhex' function
-            lr original,A  ; save it in 'original' in case it's needed later
             pi printhex    ; print the data byte at that address
             pi space       ; print a space
             lr DC,H        ; restore DC
@@ -418,7 +508,7 @@ examine1:   lr H,DC        ; save DC in H
             lr A,rxdata    ; load the byte from the 'get2hex' function into A
             bnc examine2   ; branch if the byte from 'het2hex' is not a control character
             ci ENTER       ; was the input ENTER?
-            lr A,original  ; recall the original value stored at this memory address
+            lr A,hexbyte   ; recall the original value stored at this memory address
             bz examine2
             jmp monitor2   ; if not ENTER, the input must have been ESCAPE
 
@@ -592,12 +682,13 @@ getbyte:    lr K,P
 getbyte1:   pi getnbbl     ; get the first hex digit
             lr A,rxdata    ; retrieve the character
 getbyte3:   sl 4           ; shift into the most significant nibble position
-            lr HL,A        ; save the first digit as the most significant nibble in HL
+            lr txdata,A    ; save the first digit as the most significant nibble temporarily in the tx buffer
 
 ; get the second hex digit
 getbyte4:   pi getnbbl     ; get the second hex digit
+
 ; combine the two digits into an 8 bit binary number saved in 'rxdata'
-getbyte5:   lr A,HL        ; recall the most significant nibble
+getbyte5:   lr A,txdata    ; recall the most significant nibble from the tx buffer
             xs rxdata      ; combine with the least significant nibble from the getnbbl function
             lr rxdata,A    ; save in 'rxdata'
 getbyte6:   lr P0,Q        ; restore the return address from Q
@@ -762,10 +853,12 @@ get2hex1:   pi get1hex     ; get the first hex digit
             ci ENTER       ; is it ENTER?
             bz get2hex2    ; set carry and exit if ENTER key
             bnz get2hex1   ; go back if any other control character except ESCAPE or ENTER
+            
 ; exit the function with carry set to indicate first character was a control character
 get2hex2:   li 0FFH
             inc            ; else, set the carry bit to indicate control character
             lr P0,Q        ; restore the return address from Q
+            
 get2hex3:   sl 4           ; shift into the most significant nibble position
             lr HL,A        ; save the first digit as the most significant nibble in HL
 
@@ -786,6 +879,7 @@ get2hex4:   pi get1hex     ; get the second hex digit
 get2hex5:   lr A,HL      ; recall the most significant nibble entered previously
             xs rxdata      ; combine with the least significant nibble from the get1hex function
             lr rxdata,A    ; save in rxdata
+            
 ; exit the function with carry cleared
 get2hex6:   com            ; clear carry
             lr P0,Q        ; restore the return address from Q (return to caller)
@@ -871,6 +965,71 @@ printhex2:  lr txdata,A    ; put it into the transmit buffer
             pi putchar     ; print the least significant hex digit
             pk             ; Program Counter (P0) is loaded from K (return to caller)
 
+;------------------------------------------------------------------------
+; prints (to the serial port) the contents of 'number' as a 3 
+; digit decimal number. if 'zeroflag' is zero, leading zeros are suppressed.
+; 'printdecS' suppresses leading zeros
+; 'printdecZ' prints all zeros
+;------------------------------------------------------------------------              
+printdecZ:  lr K,P         ; save the caller's return address in K
+            li 0FFH
+            lr zeroflag,A  ; set 'zeroflag'. all zeros will be print
+            br printdec0
+            
+printdecS:  lr K,P         ; save the caller's return address in K
+            clr
+            lr zeroflag,A  ; reset seroflag. leading zeros are suppressed
+            br printdec0            
+
+; hundreds digit
+printdec0:  li '0'-1
+            lr digit,A     ; initialize 'digit'
+printdec1:  lr A,digit
+            inc
+            lr digit,A     ; increment 'digit'
+            lr A,number    ; load the number
+            ai (~100)+1    ; add 2's complement of 100 (subtract 100)
+            lr number,A    ; save the number in 'decima'l
+            bc printdec1     ; if there's no underflow, go back and subtract 100 from the number again
+            ai 100         ; else, add 100 back to the number to correct the underflow
+            lr number,A    ; save the number in 'number'
+            lr A,digit     ; recall the hundreds digit
+            ci '0'         ; is the hundreds digit '0'?
+            bz printdec2   ; if so, skip the hundreds digit and go to the tens digit
+            lr txdata,A    ; else, save the hundreds digit in the tx buffer
+            pi putchar     ; print the hundreds digit
+            li 0FFH
+            lr zeroflag,A  ; set the zero flag (all zeros from now on will now be printed)
+            
+; tens digit            
+printdec2:  li '0'-1
+            lr digit,A     ; initialize 'digit'
+printdec3:  lr A,digit
+            inc
+            lr digit,A     ; increment 'digit'
+            lr A,number    ; recall the number from 'number'
+            ai (~10)+1     ; add 2's complement of 10 (subtract 10)
+            lr number,A    ; save the number in 'number'
+            bc printdec3   ; if there's no underflow, go back and subtract 10 from the number again
+            ai 10          ; else add 10 back to the number to correct the underflow
+            lr number,A    ; save the number in 'decimal'
+            lr A,digit     ; recall the ten's digit
+            ci 30H         ; is the tens digit zero?
+            bnz printdec4  ; if not, go print the tens digit
+            lr A,zeroflag  ; else, check the zero flag
+            ci 0           ; is the flag zero?
+            bz printdec5   ; if so, skip the tens digit and print the units digit
+printdec4:  lr A,digit     ; else recall the tens digit
+            lr txdata,A    ; save it in the tx buffer
+            pi putchar     ; print the tens digit           
+            
+; units digit            
+printdec5:  lr A,number    ; what remains in 'number' after subtracting hundreds and tens is the units    
+            ai 30H         ; convert to ASCII
+            lr txdata,A    ; save it in the tx buffer
+            pi putchar     ; print the units digit
+            pk             ; Program Counter (P0) is loaded from K (return to caller)
+
 ;-----------------------------------------------------------------------------------
 ; print the zero-terminated string whose first character is addressed by DC
 ;-----------------------------------------------------------------------------------
@@ -885,7 +1044,7 @@ putstr2:    lr txdata,A    ; put the character into the tx buffer
             br putstr1     ; go back for the next character
 
 ;-----------------------------------------------------------------------------------
-; get a character from the serial port
+; get the character waiting at the serial port
 ; save the character in the receive buffer 'rxdata'
 ;-----------------------------------------------------------------------------------
 getchar:    di
@@ -957,10 +1116,12 @@ menutxt     db "\r\r"
             db "J - Jump to address\r"
             db "O - Output to port\r"
             db "S - display Scratchpad RAM\r"
+            db "U - display Uptime\r"            
             db "X - display/eXamine scratchpad RAM",0
 prompttxt   db "\r\r>> ",0
 addresstxt  db "\r\rAddress: ",0
 columntxt   db "\r\r     00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F\r",0
 waitingtxt  db "\r\rWaiting for HEX download...\r\r",0
+cksumerrtxt db " Checksum errors\r",0
 portaddrtxt db "\r\rPort address: ",0
 portvaltxt  db "\rPort value: ",0

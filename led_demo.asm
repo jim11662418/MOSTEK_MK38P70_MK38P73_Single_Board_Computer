@@ -24,7 +24,8 @@ loopcnt     equ 02H              ; scratchpad RAM
 ; the output pins of port 4, therefore, outputing '1' pulls the cathode low and turns
 ; the LED on. outputing '0' turns the LED off.
 
-start:      li 0FFH
+start:      di
+            li 0FFH
             lr count,A
 
 loop:       lr A,count
