@@ -103,6 +103,8 @@ timerisr:   lr J,W         ; save status
             lr A,IS
             lr saveIS,A    ; save ISAR
             
+            li intcounter
+            lr IS,A
             lr A,S         ; load interrupt counter
             inc            ; increment the interrupt counter
             lr S,A
