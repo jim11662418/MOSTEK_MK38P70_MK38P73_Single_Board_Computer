@@ -40,10 +40,10 @@ duport      equ 0EH
 dlport      equ 0FH
 
 ; scratchpad RAM registers
-saveA       equ 02H        ; timer isr
-saveIS      equ 03H        ; timer isr
-hexbyte     equ 04H        ; printhex
-number      equ 04H        ; printdecZ and printdecS
+saveA       equ 02H
+saveIS      equ 03H
+hexbyte     equ 04H
+number      equ 04H
 errors      equ 04H
 portaddr    equ 05H
 bytecnt     equ 05H
@@ -206,7 +206,7 @@ addresses   dw display
             dw uptime
             dw xamine
             dw dnload
-            dw 0FFFFH      ; end of commands
+            dw 0FFFFH      ; end of addresses
 
 ;=======================================================================
 ; print the uptime as HH:MM:SS
@@ -248,19 +248,19 @@ uptime:     pi newline
 ; CAUTION: modifying Scratchpad Memory locations 00-0FH will likely crash the monitor!
 ;=======================================================================
 xamine:     dci addresstxt
-            pi putstr      ; print the string  to prompt for RAM address
-            pi get2hex     ; get the RAM address
+            pi putstr      ; print the string  to prompt for scratchpad RAM address
+            pi get2hex     ; get the scratchpad RAM address
             bnc xamine1    ; branch if not ESCAPE key
-            jmp monitor2
+            jmp monitor2   ; else, return to monitor
 
-xamine1:    pi newline     ; else, new line
+xamine1:    pi newline
             lr A,rxdata
             lr IS,A        ; move the address from the 'get2hex' function into ISAR
 
 ; print the address
-xamine2:    lr A,IS        ; load HU into A
+xamine2:    lr A,IS        ; load the scratchpad RAM address in ISAR into A
             lr hexbyte,A   ; save it in 'hexbyte' for the 'printhex' function
-            pi printhex    ; print the most significant byte of the address
+            pi printhex    ; print the address
             pi space
 
 ; get the byte from scratchpad RAM
@@ -270,29 +270,29 @@ xamine2:    lr A,IS        ; load HU into A
             pi space       ; print a space
 
 ; get a new value to store in memory
-            pi get2hex     ; get a new new data byte
+            pi get2hex     ; get a new data byte
             lr A,rxdata    ; load the byte from the 'get2hex' function into A
             bnc xamine3    ; branch if the byte from 'get2hex' is not a control character
             ci ENTER       ; was the input ENTER?
             lr A,S         ; recall the original value stored at this memory address
-            bz xamine3
-            jmp monitor2   ; if not ENTER, the input must have been ESCAPE
+            bz xamine3     ; branch if the input was ENTER
+            jmp monitor2   ; if not ENTER, the input must have been ESCAPE so return to monitor
 
 ; store the byte in memory
 xamine3:    lr I,A         ; store the byte in scratchpad RAM, increment IS
             pi newline
             lr A,IS
-            ni 07H
-            bnz xamine2
+            ni 07H         ; have we reached the end of the data buffer?
+            bnz xamine2    ; if not, go do next scratchpad RAM address
 ; increment ISAR to next data buffer
             lr A,IS
             ai 08H         ; next data buffer
             lr IS,A
-            lisl 0
+            lisl 0         ; reset ISAR to the beginning of the next data buffer
             br xamine2     ; go do next scratchpad RAM address
 
 ;=======================================================================
-; display the contents of one page of Main Memory in hex and ASCII
+; display the contents of one page of Main Memory (0000-0FFF) in hex and ASCII
 ;=======================================================================
 display:    dci addresstxt
             pi putstr      ; print the string  to prompt for RAM address
@@ -360,10 +360,12 @@ display6:   lr txdata,A    ; store the character in 'txdata' for the 'putchar' f
 ;   5. Data, a sequence of n bytes of data, represented by 2n hex digits.
 ;   6. Checksum, two hex digits, a computed value (starting with the byte count) used to verify record data.
 ;------------------------------------------------------------------------
-; waits for the start if record character ':'. ESCAPE returns to menu
+; waits for the start if record character ':' ESCAPE returns to menu
 ; '.' is printed for each record that is downloaded successfully with no checksum errors
-; 'E' is printed for each record where checksum errors are detected
-; when the download is complete, jump to the address contained in the last record
+; 'E' is printed for each record where a checksum error occurs
+;
+; when the download is complete, if there are no checksum errors, 
+; jump to the address contained in the last record
 ;
 ; Note: when using Teraterm to "send" a hex file, make sure that Teraterm
 ; is configured for a transmit delay of 1 msec/char and 10 msec/line.
@@ -371,7 +373,7 @@ display6:   lr txdata,A    ; store the character in 'txdata' for the 'putchar' f
 dnload:     clr
             lr errors,A       ; clear the checksum error count
             lr A,rxdata       ; retrieve the command from 'rxdata'
-            ci ':'            ; was the command ':'?
+            ci ':'            ; was the command that invoked this function ':'?
             bz dnload3        ; if so, the start character was already recieved. skip ahead
             dci waitingtxt
             pi putstr         ; else, prompt for the HEX download
@@ -386,11 +388,11 @@ dnload1:    ins cnport        ; wait here until READY bit goes high to indicate 
 dnload2:    ci ':'            ; is the character the start of record character ':'?
             bnz dnload1       ; if not, go back for another character
 
-; start of record character ':' has been received, get the record length
+; start of record character ':' has been received, now get the record length
 dnload3:    pi getbyte        ; get the record length
             lr A,rxdata
             ci 0              ; is the record length zero?
-            bz dnload6        ; branch if the record length is zero
+            bz dnload6        ; branch if the record length is zero (last record)
             lr recordlen,A    ; else, save the record length
             lr checksum,A     ; add it to the checksum
 
@@ -437,16 +439,16 @@ dnload4:    pi getbyte        ; get a data byte
             lr errors,A       ; else, increment checksum error count
             li 'E'
 dnload5:    lr txdata,A
-            pi putchar        ; echo the carriage return
+            pi putchar        ; print 'E' for 'error'
             br dnload1        ; go back for the next record
 
 ; last record
-dnload6:    pi getbyte        ; get the last record address hi byte
+dnload6:    pi getbyte        ; get the last record address most significant byte
             lr A,rxdata
-            lr HU,A           ; save the hi byte of the last record's address in HU
-            pi getbyte        ; get the last record address lo byte
+            lr HU,A           ; save the most significant byte of the last record's address in HU
+            pi getbyte        ; get the last record address least significant byte
             lr A,rxdata
-            lr HL,A           ; save the lo byte of the last record's address in HL
+            lr HL,A           ; save the least significant byte of the last record's address in HL
             pi getbyte        ; get the last record type
             pi getbyte        ; get the last record checksum
 dnload7:    ins cnport        ; wait here until READY bit goes high to indicate a character is available at the serial port
@@ -457,13 +459,13 @@ dnload7:    ins cnport        ; wait here until READY bit goes high to indicate 
             pi putchar        ; echo the carriage return
             pi newline
 
-            pi printdecS      ; print the number of checksum errors
+            pi printdecS      ; print the number of checksum errors, suppress leading zeros
             dci cksumerrtxt
             pi putstr         ; print "Checksum errors"
 
             lr A,number       ; recall the checksum error count
             ci 0
-            bz dnload8        ; if there were no checksum errors, jump to the address in the last record
+            bz dnload8        ; if there were zero checksum errors, jump to the address in the last record
             jmp monitor2      ; else, return to monitor
 
 dnload8:    lr DC,H           ; move the address from the last record now in H to DC
@@ -482,8 +484,8 @@ examine:    dci addresstxt
             pi putstr      ; print the string  to prompt for RAM address
             pi get4hex     ; get the RAM address
             bnc examine2   ; branch if not ESCAPE key
-            jmp monitor2
-examine2:   pi newline     ; else, new line
+            jmp monitor2   ; else, return to monitor
+examine2:   pi newline
             lr DC,H        ; move the address from the 'get4hex' function into DC
 
 ; print the address
@@ -510,8 +512,8 @@ examine3:   lr H,DC        ; save DC in H
             bnc examine4   ; branch if the byte from 'het2hex' is not a control character
             ci ENTER       ; was the input ENTER?
             lr A,hexbyte   ; recall the original value stored at this memory address
-            bz examine4
-            jmp monitor2   ; if not ENTER, the input must have been ESCAPE
+            bz examine4    ; branch if the input was ENTER
+            jmp monitor2   ; if not ENTER, the input must have been ESCAPE so return to monitor
 
 ; store the byte in memory
 examine4:   st             ; store the byte in RAM, increment DC
@@ -531,7 +533,7 @@ scratch:    pi newline
 ; print the address at the start of the line
 scratch1:   lr A,IS        ; ISAR
             lr hexbyte,A   ; save it in 'hexbyte' for the 'printhex' function
-            pi printhex    ; print the most significant byte of the address
+            pi printhex    ; print the scratchpad RAM address
             li '-'
             lr txdata,A
             pi putchar     ; print '-'
@@ -546,7 +548,7 @@ scratch2:   lr A,I         ; load the byte from scratchpad RAM into A, increment
             pi printhex    ; print the data byte at that address
             pi space
             ds bytecnt
-            bnz scratch2
+            bnz scratch2   ; branch back until 8 bytes have been printed
 
 ; print 8 ASCII characters
             lr A,HL
@@ -562,16 +564,16 @@ scratch5:   li '.'
 scratch6:   lr txdata,A    ; store the character in 'txdata' for the 'putchar' function
             pi putchar     ; print the character
             ds bytecnt
-            bnz scratch4
+            bnz scratch4   ; branch back until 8 characters have been printed
             pi newline     ; finished with this line
 
 ; increment ISAR to next data buffer
             lr A,IS
             ai 08H         ; next data buffer
             lr IS,A
-            lisl 0
+            lisl 0         ; reset ISAR to the beginning of the data buffer
             ds linecnt
-            bnz scratch1   ; go do next data buffer
+            bnz scratch1   ; branch back until all 8 data buffers have been printed
             jmp monitor2   ; back to the menu
 
 ;=======================================================================
@@ -734,6 +736,7 @@ getnbbl7:   pk             ; Program Counter (P0) is loaded from K (return to ca
 ; get four hex digits (0000-FFFF) from the serial port. echo valid hex digits.
 ; returns with carry set if ESCAPE key, else returns with the the 16 bit number
 ; in linkage register H (scratchpad RAM registers 0AH and 0BH)
+;
 ; NOTE: it is not necessary to enter leading zeros. i.e.
 ;   1<ENTER> returns 0001
 ;  12<ENTER> returns 0012
@@ -818,7 +821,7 @@ get4hex5:   lr A,rxdata    ; get the third digit from the rx buffer
             br get4hex7    ; exit the function
 
 ; the fourth character entered is a valid hex digit...
-get4hex6:   lr A,HL      ; retrieve the third hex digit
+get4hex6:   lr A,HL        ; retrieve the third hex digit
             xs rxdata      ; combine with the fourth digit
             lr HL,A        ; save it in HL
 
@@ -835,8 +838,11 @@ get4hex8:   li 0FFH
 ; get 2 hex digits (00-FF) from the serial port. echo valid hex digits.
 ; returns with carry set if ESCAPE or ENTER key, else returns with the 8
 ; bit binary number in 'rxdata'
+;
 ; NOTE: it is not necessary to enter a leading zero. i.e.
 ; 1<ENTER> returns 01
+; 2<ENTER> returns 02
+; ...
 ; F<ENTER> returns 0F
 ;------------------------------------------------------------------------
 get2hex:    lr K,P
@@ -877,7 +883,7 @@ get2hex4:   pi get1hex     ; get the second hex digit
             br get2hex6    ; exit the function
 
 ; combine the two hex digits into one byte and save in 'rxdata'
-get2hex5:   lr A,HL      ; recall the most significant nibble entered previously
+get2hex5:   lr A,HL        ; recall the most significant nibble entered previously
             xs rxdata      ; combine with the least significant nibble from the get1hex function
             lr rxdata,A    ; save in rxdata
 
@@ -886,7 +892,7 @@ get2hex6:   com            ; clear carry
             lr P0,Q        ; restore the return address from Q (return to caller)
 
 ;------------------------------------------------------------------------
-; get 1 hex digit (0-9,A-F) from the serial port. echo the digit.
+; get 1 hex digit (0-9,A-F) from the serial port. echo valid hex digits.
 ; returns with carry set if ESCAPE or ENTER key , else returns with carry
 ; clear and the 4 bit binary number in 'rxdata'.
 ;------------------------------------------------------------------------
@@ -974,7 +980,7 @@ printhex2:  lr txdata,A    ; put it into the transmit buffer
 ;------------------------------------------------------------------------
 printdecZ:  lr K,P         ; save the caller's return address in K
             li 0FFH
-            lr zeroflag,A  ; set 'zeroflag'. all zeros will be print
+            lr zeroflag,A  ; set 'zeroflag'. all zeros will be printed
             br printdec1
 
 printdecS:  lr K,P         ; save the caller's return address in K
@@ -1038,7 +1044,7 @@ putstr:     lr K,P         ; save the caller's return address in K
 putstr1:    lm             ; load the character addressed by DC and increment DC
             ci 0           ; is the character zero (end of string)?
             bnz putstr2    ; branch if not the end of the string
-            pk             ; Program Counter (P0) is loaded from K (return to caller)
+            pk             ; else, Program Counter (P0) is loaded from K (return to caller)
 
 putstr2:    lr txdata,A    ; put the character into the tx buffer
             pi putchar     ; print the character
