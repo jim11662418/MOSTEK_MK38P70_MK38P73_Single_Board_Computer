@@ -4,5 +4,7 @@ A simple single board computer based on the Mostek MK38P70 or MK38P73 MCU. The M
 Assemble the source with the [Macro Assembler AS](http://john.ccac.rwth-aachen.de:8000/as/). 
 <p align="center"><img src="/images/MK38P73 SBC Photo.JPG"/>
 <p align="center">MK38P73 SBC</p><br>
+<p align="center"><img src="/images/MK38P70 SBC.jpg"/>
+<p align="center">MK38P70 SBC Schematic</p><br>
 <p align="center"><img src="/images/MK38P73 SBC.jpg"/>
 <p align="center">MK38P73 SBC Schematic</p><br>
