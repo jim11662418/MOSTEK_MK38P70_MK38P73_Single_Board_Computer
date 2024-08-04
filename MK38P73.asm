@@ -1,6 +1,8 @@
             page 0        ;  suppress page headings in listing file
 ;=========================================================================
-; Firmware for the Mostek MK38P73 Single Board Computer.
+; Monitor firmware for the Mostek MK38P73 Single Board Computer.
+;
+; this version for the MK38P73 uses the hardware serial port.
 ;
 ; Requires the use of a terminal emulator connected to the SBC
 ; set for 9600 bps, 8 data bits, no parity, 1 stop bit.
@@ -1068,7 +1070,7 @@ space:      lr K,P         ; second level subroutine which calls third level sub
 ; get the character waiting at the serial port
 ; save the character in the receive buffer 'rxdata'
 ;-----------------------------------------------------------------------------------
-getchar:    di             ; third level subroutine
+getchar:    di             ; third level subroutine - can't be interrupted
             ins duport     ; read the upper data port
             sl 1
             lr rxdata,A    ; save bits 7-1 of the received character
@@ -1084,7 +1086,7 @@ getchar:    di             ; third level subroutine
 ;-----------------------------------------------------------------------------------
 ; transmit the character in the tx buffer 'txdata' through the serial port
 ;-----------------------------------------------------------------------------------
-putchar:    di             ; third level subroutine
+putchar:    di             ; third level subroutine - can't be interrupted
             lr A,txdata    ; load the character to be tranmitted from the transmit buffer
             sl 1           ; shift left to make room for the start bit
             outs dlport    ; store into the lower data port
