@@ -23,7 +23,6 @@
 
             cpu MK3873
 
-; constants
 bdrate      equ 0BH        ; command send to brport to set baud rate to 9600
 txcmd       equ 82H        ; command sent to cnport to configure shift register to transmit 10 bits
 rxcmd       equ 90H        ; command send to cnport to configure shift register to receive 10 bits
@@ -73,7 +72,7 @@ hours       equ 3BH
             lr I,A         ; reset hours
 
 ; initialize serial port for 9600 bps, N-8-1
-init:       li bdrate      ; baud rate value for 9600 bps
+init:       li bdrate      ; baud rate value for 9600bps - see App Note: "Using the MK3873 Serial Port" p. VI-2
             outs brport    ; output to baud rate port
             li rxcmd       ; start in receiver mode
             outs cnport    ; write to control port
@@ -163,7 +162,7 @@ monitor2:   dci prompttxt
             pi putstr      ; print the input prompt
 monitor3:   ins cnport     ; wait here until READY bit goes high to indicate a character is available at the serial port
             bp monitor3
-            pi getchar     ; get the command character waiting at the serial port
+            pi getchar0    ; get the command character waiting at the serial port
             lr A,rxdata    ; retrieve the character from the rx buffer
             ci 'a'-1
             bc monitor4    ; branch if character is < 'a'
@@ -185,12 +184,11 @@ monitor5:   lr A,rxdata    ; get the command from the rx buffer
             adc            ; else decrement DC
             br monitor5    ; go try the next table entry
 
-monitor6:   lm             ; load hi byte of address from addresses into A, increment DC
+monitor6:   lm             ; load hi byte of address from 'cmdtable' into A, increment DC
             lr QU,A        ; load hi byte of address from A into QU
-            lm             ; load lo byte of address from addresses into A
+            lm             ; load lo byte of address from 'cmdtable' into A
             lr QL,A        ; load lo byte of address from A into QL
-            lr P0,Q        ; jump to address from addresses
-
+            lr P0,Q        ; jump to address from 'cmdtable'
 
 cmdtable    db 'D'
             dw display
@@ -213,7 +211,7 @@ cmdtable    db 'D'
             db ':'
             dw dnload
             db 0           ; end of table
-            
+
 ;=======================================================================
 ; print the uptime as HH:MM:SS
 ;=======================================================================
@@ -266,13 +264,13 @@ xamine1:    pi newline
 ; print the address
 xamine2:    lr A,IS        ; load the scratchpad RAM address in ISAR into A
             lr hexbyte,A   ; save it in 'hexbyte' for the 'print2hex' function
-            pi print2hex    ; print the address
+            pi print2hex   ; print the address
             pi space
 
 ; get the byte from scratchpad RAM
             lr A,S         ; load the byte from scratchpad RAM into A, do not increment or decrement IS
             lr hexbyte,A   ; save it in 'hexbyte' for the 'print2hex' function
-            pi print2hex    ; print the data byte at that address
+            pi print2hex   ; print the data byte at that address
             pi space       ; print a space
 
 ; get a new value to store in memory
@@ -316,10 +314,10 @@ display1:   dci columntxt
 display2:   lr H,DC        ; save DC in H
             lr A,HU        ; load HU into A
             lr hexbyte,A   ; save it in 'hexbyte' for the 'print2hex' function
-            pi print2hex    ; print the most significant byte of the address
+            pi print2hex   ; print the most significant byte of the address
             lr A,HL        ; load HL into A
             lr hexbyte,A   ; save it in 'hexbyte' for the 'print2hex' function
-            pi print2hex    ; print the least significant byte of the address
+            pi print2hex   ; print the least significant byte of the address
             li '-'
             lr txdata,A
             pi putchar     ; print '-' between address and first byte
@@ -329,7 +327,7 @@ display2:   lr H,DC        ; save DC in H
             lr bytecnt,A   ; 16 hex bytes on a line
 display3:   lm             ; load the byte from memory into A, increment DC
             lr hexbyte,A   ; save it in 'hexbyte' for the 'print2hex' function
-            pi print2hex    ; print the data byte at that address
+            pi print2hex   ; print the data byte at that address
             pi space       ; print a space between bytes
             ds bytecnt
             bnz display3   ; loop until all 16 bytes are printed
@@ -370,37 +368,37 @@ display6:   lr txdata,A    ; store the character in 'txdata' for the 'putchar' f
 ; '.' is printed for each record that is downloaded successfully with no checksum errors
 ; 'E' is printed for each record where a checksum error occurs
 ;
-; when the download is complete, if there are no checksum errors, 
+; when the download is complete, if there are no checksum errors,
 ; jump to the address contained in the last record
 ;
 ; Note: when using Teraterm to "send" a hex file, make sure that Teraterm
 ; is configured for a transmit delay of 1 msec/char and 10 msec/line.
 ;=======================================================================
 dnload:     clr
-            lr errors,A       ; clear the checksum error count
-            lr A,rxdata       ; retrieve the command from 'rxdata'
-            ci ':'            ; was the command that invoked this function ':'?
-            bz dnload3        ; if so, the start character was already recieved. skip ahead
+            lr errors,A    ; clear the checksum error count
+            lr A,rxdata    ; retrieve the command from 'rxdata'
+            ci ':'         ; was the command that invoked this function ':'?
+            bz dnload3     ; if so, the start character was already recieved. skip ahead
             dci waitingtxt
-            pi putstr         ; else, prompt for the HEX download
-dnload1:    ins cnport        ; wait here until READY bit goes high to indicate a character is available at the serial port
+            pi putstr      ; else, prompt for the HEX download
+dnload1:    ins cnport     ; wait here until READY bit goes high to indicate a character is available at the serial port
             bp dnload1
-            pi getchar        ; get the character waiting at the serial port
-            lr A,rxdata       ; retrieve the character from the rx buffer
-            ci ESCAPE         ; is it ESCAPE?
-            bnz dnload2       ; not escape, continue below
-            jmp monitor2      ; jump back to the menu if ESCAPE
+            pi getchar0    ; get the character waiting at the serial port
+            lr A,rxdata    ; retrieve the character from the rx buffer
+            ci ESCAPE      ; is it ESCAPE?
+            bnz dnload2    ; not escape, continue below
+            jmp monitor2   ; jump back to the menu if ESCAPE
 
-dnload2:    ci ':'            ; is the character the start of record character ':'?
-            bnz dnload1       ; if not, go back for another character
+dnload2:    ci ':'         ; is the character the start of record character ':'?
+            bnz dnload1    ; if not, go back for another character
 
 ; start of record character ':' has been received, now get the record length
-dnload3:    pi getbyte        ; get the record length
+dnload3:    pi getbyte     ; get the record length
             lr A,rxdata
-            ci 0              ; is the record length zero?
-            bz dnload6        ; branch if the record length is zero (last record)
-            lr recordlen,A    ; else, save the record length
-            lr checksum,A     ; add it to the checksum
+            ci 0           ; is the record length zero?
+            bz dnload6     ; branch if the record length is zero (last record)
+            lr recordlen,A ; else, save the record length
+            lr checksum,A  ; add it to the checksum
 
 ; get the address hi byte
             pi getbyte
@@ -415,68 +413,68 @@ dnload3:    pi getbyte        ; get the record length
             lr HL,A
             as checksum
             lr checksum,A
-            lr DC,H           ; load the record address into DC
+            lr DC,H        ; load the record address into DC
 
 ; get the record type
-            pi getbyte        ; get the record type
+            pi getbyte     ; get the record type
             lr A,rxdata
             as checksum
             lr checksum,A
 
 ; download and store data bytes...
-dnload4:    pi getbyte        ; get a data byte
+dnload4:    pi getbyte     ; get a data byte
             lr A,rxdata
-            st                ; store the data byte in memory [DC]. increment DC
+            st             ; store the data byte in memory [DC]. increment DC
             as checksum
             lr checksum,A
             ds recordlen
-            bnz dnload4       ; loop back until all data bytes for this record have been received
+            bnz dnload4    ; loop back until all data bytes for this record have been received
 
 ; since the record's checksum byte is the two's complement and therefore the additive inverse
 ; of the data checksum, the verification process can be reduced to summing all decoded byte
 ; values, including the record's checksum, and verifying that the LSB of the sum is zero.
-            pi getbyte        ; get the record's checksum
+            pi getbyte     ; get the record's checksum
             lr A,rxdata
             as checksum
             li '.'
-            bz dnload5        ; zero means checksum OK
+            bz dnload5     ; zero means checksum OK
             lr A,errors
             inc
-            lr errors,A       ; else, increment checksum error count
+            lr errors,A    ; else, increment checksum error count
             li 'E'
 dnload5:    lr txdata,A
-            pi putchar        ; print 'E' for 'error'
-            br dnload1        ; go back for the next record
+            pi putchar     ; print 'E' for 'error'
+            br dnload1     ; go back for the next record
 
 ; last record
-dnload6:    pi getbyte        ; get the last record address most significant byte
+dnload6:    pi getbyte     ; get the last record address most significant byte
             lr A,rxdata
-            lr HU,A           ; save the most significant byte of the last record's address in HU
-            pi getbyte        ; get the last record address least significant byte
+            lr HU,A        ; save the most significant byte of the last record's address in HU
+            pi getbyte     ; get the last record address least significant byte
             lr A,rxdata
-            lr HL,A           ; save the least significant byte of the last record's address in HL
-            pi getbyte        ; get the last record type
-            pi getbyte        ; get the last record checksum
-dnload7:    ins cnport        ; wait here until READY bit goes high to indicate a character is available at the serial port
+            lr HL,A        ; save the least significant byte of the last record's address in HL
+            pi getbyte     ; get the last record type
+            pi getbyte     ; get the last record checksum
+dnload7:    ins cnport     ; wait here until READY bit goes high to indicate a character is available at the serial port
             bp dnload7
-            pi getchar        ; get the last carriage return
+            pi getchar0    ; get the last carriage return
             li '.'
             lr txdata,A
-            pi putchar        ; echo the carriage return
+            pi putchar     ; echo the carriage return
             pi newline
 
-            pi printdecS      ; print the number of checksum errors, suppress leading zeros
+            pi printdecS   ; print the number of checksum errors, suppress leading zeros
             dci cksumerrtxt
-            pi putstr         ; print "Checksum errors"
+            pi putstr      ; print "Checksum errors"
 
-            lr A,number       ; recall the checksum error count
+            lr A,number    ; recall the checksum error count
             ci 0
-            bz dnload8        ; if there were zero checksum errors, jump to the address in the last record
-            jmp monitor2      ; else, return to monitor
+            bz dnload8     ; if there were zero checksum errors, jump to the address in the last record
+            jmp monitor2   ; else, return to monitor
 
-dnload8:    lr DC,H           ; move the address from the last record now in H to DC
-            lr Q,DC           ; move the address in DC to Q
-            lr P0,Q           ; move the address in Q to the program counter (jump to the address in Q)
+dnload8:    lr DC,H        ; move the address from the last record now in H to DC
+            lr Q,DC        ; move the address in DC to Q
+            lr P0,Q        ; move the address in Q to the program counter (jump to the address in Q)
 
 ;=======================================================================
 ; examine/modify Main Memory contents
@@ -498,17 +496,17 @@ examine2:   pi newline
 examine3:   lr H,DC        ; save DC in H
             lr A,HU        ; load HU into A
             lr hexbyte,A   ; save it in 'hexbyte' for the 'print2hex' function
-            pi print2hex    ; print the most significant byte of the address
+            pi print2hex   ; print the most significant byte of the address
             lr A,HL        ; load HL into A
             lr hexbyte,A   ; save it in 'hexbyte' for the 'print2hex' function
-            pi print2hex    ; print the least significant byte of the address
+            pi print2hex   ; print the least significant byte of the address
             pi space
 
 ; get the byte from memory
             lr H,DC        ; save DC in H
             lm             ; load the byte from memory into A, increment DC
             lr hexbyte,A   ; save it in 'hexbyte' for the 'print2hex' function
-            pi print2hex    ; print the data byte at that address
+            pi print2hex   ; print the data byte at that address
             pi space       ; print a space
             lr DC,H        ; restore DC
 
@@ -539,7 +537,7 @@ scratch:    pi newline
 ; print the address at the start of the line
 scratch1:   lr A,IS        ; ISAR
             lr hexbyte,A   ; save it in 'hexbyte' for the 'print2hex' function
-            pi print2hex    ; print the scratchpad RAM address
+            pi print2hex   ; print the scratchpad RAM address
             li '-'
             lr txdata,A
             pi putchar     ; print '-'
@@ -551,7 +549,7 @@ scratch1:   lr A,IS        ; ISAR
             lr HL,A        ; save IS in HL
 scratch2:   lr A,I         ; load the byte from scratchpad RAM into A, increment ISAR
             lr hexbyte,A   ; save it in 'hexbyte' for the 'print2hex' function
-            pi print2hex    ; print the data byte at that address
+            pi print2hex   ; print the data byte at that address
             pi space
             ds bytecnt
             bnz scratch2   ; branch back until 8 bytes have been printed
@@ -633,7 +631,7 @@ input2:     dci portvaltxt
 
 input3:     lr A,portval   ; code in executable RAM jumps back here, retrieve the input byte
             lr hexbyte,A   ; save it in 'hexbyte' for the 'print2hex' function
-            pi print2hex    ; print the input byte
+            pi print2hex   ; print the input byte
             pi newline     ; newline
             jmp monitor2   ; return to menu
 
@@ -646,7 +644,7 @@ output1:    pi get2hex     ; get the port address
             lr A,rxdata
             lr portaddr,A  ; save the port address
             bnc output2    ; branch if the input was not ESCAPE or ENTER
-            ci ESCAPE      ; is the input ESCAPE"
+            ci ESCAPE      ; is the input ESCAPE?
             bnz output1    ; if not, go back for more input
             jmp monitor2   ; return to menu if ESCAPE
 
@@ -907,7 +905,7 @@ print2hex:  lr K,P         ; first level subroutine which calls second level sub
 get1hex:    lr K,P         ; second level subroutine which calls third level subroutine 'getchar'
 get1hex1:   ins cnport     ; wait here until READY bit goes high to indicate a character is available at the serial port
             bp get1hex1
-            pi getchar     ; get the character waiting at the serial port
+            pi getchar0    ; get the character waiting at the serial port
             lr A,rxdata    ; retrieve the character from the rx buffer
 
 ; check for control characters (ESCAPE or ENTER)
@@ -980,7 +978,7 @@ printdecZ:  lr K,P         ; second level subroutine which calls third level sub
 
 printdecS:  lr K,P         ; save the caller's return address in K
             clr
-            lr zeroflag,A  ; reset seroflag. leading zeros are suppressed
+            lr zeroflag,A  ; reset zeroflag. leading zeros are suppressed
             br printdec1
 
 ; hundreds digit
@@ -1065,12 +1063,23 @@ space:      lr K,P         ; second level subroutine which calls third level sub
             lr txdata,A    ; put it into the tx buffer
             pi putchar     ; print the carriage return
             pk             ; return from second level subroutine
-            
+
 ;-----------------------------------------------------------------------------------
 ; get the character waiting at the serial port
 ; save the character in the receive buffer 'rxdata'
+;
+; serial reception:         
+; bits are shifted in from left to right
+; bits 1-7 of the received character are in bits 0-6 of the the upper data port
+; bit 0 of the received character is in bit 7 of the lower data port         
+;       ---upper data port----    ---lower data port----   
+;       7  6  5  4  3  2  1  0  7  6  5  4  3  2  1  0
+;       -------received bits--------
+; SI--> S  7  6  5  4  3  2  1  0  S  -  -  -  -  -  -
 ;-----------------------------------------------------------------------------------
-getchar:    di             ; third level subroutine - can't be interrupted
+getchar:    ins cnport     ; wait here until READY bit goes high to indicate a character is available at the serial port
+            bp getchar
+getchar0:   di             ; third level subroutine - can't be interrupted
             ins duport     ; read the upper data port
             sl 1
             lr rxdata,A    ; save bits 7-1 of the received character
@@ -1085,6 +1094,15 @@ getchar:    di             ; third level subroutine - can't be interrupted
 
 ;-----------------------------------------------------------------------------------
 ; transmit the character in the tx buffer 'txdata' through the serial port
+;
+; serial transmission:  
+; bits are shifted out from left to right
+; bits 0-6 of the character to be transmitted are stored in bits 1-7 of the the lower data port
+; bit 7 of the character to be transmitted is stored in bit 0 of the upper data port         
+;       ---upper data port----  ---lower data port----   
+;       7  6  5  4  3  2  1  0  7  6  5  4  3  2  1  0
+;                         ---bits to be transmitted---
+;       -  -  -  -  -  -  S  7  6  5  4  3  2  1  0  S --> SO
 ;-----------------------------------------------------------------------------------
 putchar:    di             ; third level subroutine - can't be interrupted
             lr A,txdata    ; load the character to be tranmitted from the transmit buffer
