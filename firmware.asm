@@ -22,7 +22,8 @@
             cpu MK3850
             
 ; constants
-MCU         equ "MK38P70"  ; "MK38P70" uses software serial. "MK38P73" uses hardware serial.
+MCU         equ "MK38P70"  ; "MK38P70" uses software serial
+;MCU         equ "MK38P73"  ; "MK38P73" uses hardware serial
 ESCAPE      equ 1BH
 ENTER       equ 0DH
 
