@@ -1126,7 +1126,7 @@ serialinit: li bdrate      ; baud rate value for 9600bps - see App Note: "Using 
 ; bits are shifted in from left to right.
 ; bits 1-7 of the received character are in bits 0-6 of the the upper data port.
 ; bit 0 of the received character is in bit 7 of the lower data port.         
-;       ---upper data port----    ---lower data port----   
+;       ---upper data port----  ---lower data port----   
 ;       7  6  5  4  3  2  1  0  7  6  5  4  3  2  1  0
 ;       -------received bits--------
 ; SI--> S  7  6  5  4  3  2  1  0  S  -  -  -  -  -  -
