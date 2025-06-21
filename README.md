@@ -10,3 +10,5 @@ Here's another [F8 based single board computer](https://github.com/jim11662418/M
 <p align="center">MK38P70 SBC Schematic</p><br>
 <p align="center"><img src="/images/MK38P73 SBC.jpg"/>
 <p align="center">MK38P73 SBC Schematic</p><br>
+<p align="center"><img src="/images/MOSTEK MK38P73.png"/>
+<p align="center">MK38P73 SBC</p><br>
